@@ -53,7 +53,7 @@ function Row({ row, columnIndex, map }) {
         return (
           <div
             key={index}
-            className={`border border-gray-300 h-16 w-16 flex justify-center items-center text-teal-400 font-bold text-md ${
+            className={`border border-gray-300 h-8 w-8 xl:h-16 xl:w-16 flex justify-center items-center text-teal-400 font-bold text-md ${
               isPath && 'bg-gray-200'
             } ${block === 'W' && 'bg-gray-800'} ${
               block === 'F' && 'bg-blue-600'
@@ -162,7 +162,7 @@ export default function App() {
     try {
       let internalCalls = 0;
       let totalFunctionCalls = 0;
-      let timeBetweenCalls = 10;
+      let timeBetweenCalls = 100;
 
       function move(moves, callback) {
         if (window.inFunction) {
@@ -373,35 +373,10 @@ export default function App() {
   }
 
   return (
-    <div className="relative h-screen flex overflow-hidden">
-      <div className="absolute right-0 top-0 m-4 z-10">
-        {!running ? (
-          <button
-            onClick={evalCode}
-            className="border rounded border-blue-500 text-blue-500 px-4 py-2 shadow-md mr-6">
-            Run
-          </button>
-        ) : (
-          <button
-            onClick={() => {
-              stop();
-              reset();
-            }}
-            className="border rounded border-blue-500 text-blue-500 px-4 py-2 shadow-md mr-6">
-            Reset
-          </button>
-        )}
-        <button
-          onClick={() => {
-            stop();
-          }}
-          className="border rounded border-red-500 text-red-500 px-4 py-2 shadow-md">
-          Stop
-        </button>
-      </div>
-      <div className="w-1/2">
+    <div className="relative h-screen flex lg:flex-row flex-col flex-col-reverse overflow-hidden">
+      <div className="lg:w-1/2 w-full h-1/2 lg:h-full">
         <MonacoEditor
-          height="100vh"
+          height="100%"
           language="javascript"
           theme="vs-dark"
           value={code}
@@ -438,24 +413,49 @@ export default function App() {
             minimap: { enabled: false },
             fontSize: 18,
             useTabStops: false,
+            automaticLayout: true,
           }}
           onChange={(value) => {
             setCode(value);
           }}
         />
       </div>
-      <div className="p-1 cursor-move bg-gray-800"></div>
-      <div className="relative w-1/2 h-full">
+      <div className="relative lg:w-1/2 w-full h-1/2 lg:h-full">
         <div className="relative m-auto justify-center items-center h-full">
-          <div className="items-start justify-start pt-5 pl-5 flex space-x-6">
+          <div className="items-start justify-between pt-5 pl-5 flex w-full">
             <div>Star Count: {stars}</div>
             <div>Call Count: {calls}</div>
             <div>Max Call Count: {maxCalls}</div>
             {calls > maxCalls && (
               <div className="text-red-600">You Lose, Please Try Again</div>
             )}
+            <div className="pr-2 lg:pr-6">
+              {!running ? (
+                <button
+                  onClick={evalCode}
+                  className="border rounded border-blue-500 text-blue-500 px-4 py-2 shadow-md mr-6">
+                  Run
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    stop();
+                    reset();
+                  }}
+                  className="border rounded border-blue-500 text-blue-500 px-4 py-2 shadow-md mr-6">
+                  Reset
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  stop();
+                }}
+                className="border rounded border-red-500 text-red-500 px-4 py-2 shadow-md">
+                Stop
+              </button>
+            </div>
           </div>
-          <div className="items-start justify-start pt-5 pl-5 flex space-x-6">
+          <div className="items-start justify-start lg:pt-5 pl-5 flex space-x-6">
             {error && <div className="text-red-600">{error}</div>}
           </div>
           <div className="w-full flex flex-1 justify-center mt-16">
