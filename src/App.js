@@ -5,47 +5,50 @@ const defaultCode = `
 // Here you will write your code in the setup function.
 
 // Functions to use
-// up();
-// down();
-// left();
-// right();
+// up(moveCount);
+// down(moveCount);
+// left(moveCount);
+// right(moveCount);
 
-function setup() {
-  right();
-  right();
-  down();
-  down();
-  down();
-  down();
-  down();
-  down();
-  right();
-  right();
-  right();
-  right();
-  right();
-  down();
-  down();
-  right();
-  right();
-}
-
-setup();
+right(2);
+down(6);
+right(5);
+down(2);
+right(2);
 `;
 
-function Row({ row }) {
+function Row({ row, columnIndex, map }) {
   return (
     <div className="flex">
       {row.map((block, index) => {
-        const isPath = ['P', 'S', 'R'].includes(block);
+        const isPath = ['P', 'B', 'ER'].includes(block);
+
+        const leftBorder = ['P', 'B', 'W', 'ER', 'X'].includes(row[index - 1]);
+        const rightBorder = ['P', 'B', 'W', 'ER', 'X'].includes(row[index + 1]);
+        const topBorder = ['P', 'B', 'W', 'ER', 'X'].includes(
+          map[columnIndex - 1] && map[columnIndex - 1][index]
+        );
+        const bottomBorder = ['P', 'B', 'W', 'ER', 'X'].includes(
+          map[columnIndex + 1] && map[columnIndex + 1][index]
+        );
+
+        const borderCss = `${!leftBorder ? 'border-l-1' : 'border-l-0'} ${
+          !rightBorder ? 'border-r-1' : 'border-r-0'
+        } ${!topBorder ? 'border-t-1' : 'border-t-0'} ${
+          !bottomBorder ? 'border-b-1' : 'border-b-0'
+        }`;
 
         return (
           <div
             key={index}
             className={`border border-gray-300 h-16 w-16 flex justify-center items-center text-teal-400 font-bold text-md ${
               isPath && 'bg-gray-200'
-            }`}>
-            {block === 'P' && (
+            } ${block === 'W' && 'bg-gray-800'} ${
+              block === 'F' && 'bg-blue-600'
+            } ${block === 'B' && 'bg-blue-600'} ${
+              block === 'X' && 'bg-red-600'
+            } ${borderCss}`}>
+            {(block === 'P' || block === 'B' || block === 'X') && (
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
@@ -76,175 +79,245 @@ function Row({ row }) {
 
 /* prettier-ignore */
 const defaultMap = [
-  ['P', 'S', 'R', 'E', 'E', 'E', 'E', 'E', 'E', 'E'],
-  ['E', 'E', 'R', 'E', 'E', 'E', 'E', 'E', 'E', 'E'],
-  ['E', 'E', 'R', 'E', 'E', 'E', 'E', 'E', 'E', 'E'],
-  ['E', 'E', 'S', 'E', 'E', 'E', 'E', 'E', 'E', 'E'],
-  ['E', 'E', 'R', 'E', 'E', 'E', 'E', 'E', 'E', 'E'],
-  ['E', 'E', 'R', 'E', 'E', 'E', 'E', 'E', 'E', 'E'],
-  ['E', 'E', 'R', 'R', 'R', 'S', 'R', 'R', 'E', 'E'],
-  ['E', 'E', 'E', 'E', 'E', 'E', 'E', 'R', 'E', 'E'],
-  ['E', 'E', 'E', 'E', 'E', 'E', 'E', 'S', 'R', 'R'],
-  ['E', 'E', 'E', 'E', 'E', 'E', 'E', 'E', 'E', 'E'],
+  ['B', 'E', 'E', 'W', 'W', 'W', 'E', 'E', 'E', 'E'],
+  ['E', 'E', 'E', 'W', 'W', 'W', 'E', 'E', 'E', 'E'],
+  ['E', 'E', 'E', 'W', 'W', 'W', 'E', 'E', 'E', 'E'],
+  ['E', 'E', 'S', 'W', 'W', 'W', 'E', 'E', 'E', 'E'],
+  ['E', 'E', 'E', 'W', 'W', 'W', 'E', 'E', 'E', 'E'],
+  ['E', 'E', 'E', 'W', 'W', 'W', 'E', 'E', 'E', 'E'],
+  ['E', 'E', 'E', 'E', 'E', 'S', 'E', 'E', 'E', 'E'],
+  ['E', 'E', 'E', 'W', 'W', 'W', 'E', 'E', 'E', 'E'],
+  ['E', 'E', 'E', 'W', 'W', 'W', 'E', 'S', 'E', 'F'],
+  ['E', 'E', 'E', 'W', 'W', 'W', 'E', 'E', 'E', 'E'],
 ]
+
+let timeouts = [];
 
 export default function App() {
   const [code, setCode] = useState(defaultCode);
   const [map, setMap] = useState(defaultMap);
   const [calls, setCalls] = useState(0);
-  const [maxCalls, setMaxCalls] = useState(20);
+  const [maxCalls, setMaxCalls] = useState(5);
   const [stars, setStars] = useState(0);
-  const options = {
-    selectOnLineNumbers: true,
-    fontSize: 18,
-  };
+  const [error, setError] = useState(null);
+  const [running, setRunning] = useState(false);
 
-  function evalCode() {
+  useEffect(() => {
+    if (calls > maxCalls) {
+      setError('Max Calls Created');
+      stop();
+    }
+  }, [calls, maxCalls, error]);
+
+  function stop() {
+    timeouts.forEach((timeout) => clearTimeout(timeout));
+    timeouts = [];
+  }
+
+  function reset() {
     setMap(defaultMap);
     setStars(0);
     setCalls(0);
+    setError(null);
+    setRunning(false);
+  }
 
+  function evalCode() {
+    reset();
+    stop();
+    setRunning(true);
+    let errorMessage;
     try {
-      eval(`
-    let internalCalls = 0;
-    let timeBetweenCalls = 250;
+      let internalCalls = 0;
+      let totalFunctionCalls = 0;
+      let timeBetweenCalls = 250;
 
-    function up() {
-      internalCalls++
-      moveY(-1);
-    }
-    function down() {
-      internalCalls++
-      moveY(1);
-    }
+      function move(moves, callback) {
+        totalFunctionCalls++;
+        setCalls(totalFunctionCalls);
+        [...Array(moves).keys()].forEach((move) => {
+          internalCalls++;
+          callback();
+        });
+      }
 
-    function left() {
-      internalCalls++
-      moveX(-1);
-    }
-    function right() {
-      internalCalls++
-      moveX(1);
-    }
+      function up(moves = 1) {
+        move(moves, () => moveY(-1));
+      }
+      function down(moves = 1) {
+        move(moves, () => moveY(1));
+      }
+      function left(moves = 1) {
+        move(moves, () => moveX(-1));
+      }
+      function right(moves = 1) {
+        move(moves, () => moveX(1));
+      }
 
-    function moveY(move) {
-      setTimeout(() => {
-        console.log(move === 1 ? 'down': 'up');
-        setCalls((calls) => calls + 1);
-        setMap((map) => {
-          let playerXIndex, playerYIndex;
-          map.forEach((row, columnIndex) => {
-            row.forEach((block, rowIndex) => {
-              if (block === 'P') {
-                playerXIndex = rowIndex
-                playerYIndex = columnIndex
-              }
-            })
-          })
-
-          return map.map((row, columnIndex) => {
-            return row.map((block, rowIndex) => {
-              if (playerXIndex === rowIndex && playerYIndex === columnIndex && !map[playerYIndex + move]) {
-                console.log('invalid move');
-                return 'P';
-              }
-
-              if (playerXIndex === rowIndex && playerYIndex === columnIndex) {
-                return 'E';
-              }
-              if (playerXIndex === rowIndex && playerYIndex + move === columnIndex) {
-                if (block === 'S') {
-                  setStars((stars) => {
-                    return stars + 0.5
-                  });
+      function moveY(move) {
+        const timeout = setTimeout(() => {
+          if (errorMessage) {
+            clearTimeout(timeout);
+            return;
+          }
+          console.log(move === 1 ? 'down' : 'up');
+          setMap((map) => {
+            let playerXIndex, playerYIndex;
+            map.forEach((row, columnIndex) => {
+              row.forEach((block, rowIndex) => {
+                if (block === 'P' || block === 'B') {
+                  playerXIndex = rowIndex;
+                  playerYIndex = columnIndex;
                 }
-                
-                return 'P';
-              }
-              return block;
-            })
-          })
-        })
-      },internalCalls * timeBetweenCalls);
-    }
+              });
+            });
 
-    function moveX(move) {
-      setTimeout(() => {
-        console.log(move === 1 ? 'right': 'left');
-        setCalls((calls) => calls + 1);
-        setMap((map) => {
-          let playerXIndex, playerYIndex;
-          map.forEach((row, columnIndex) => {
-            row.forEach((block, rowIndex) => {
-              if (block === 'P') {
-                playerXIndex = rowIndex
-                playerYIndex = columnIndex
-              }
-            })
-          })
-
-          return map.map((row, columnIndex) => {
-            return row.map((block, rowIndex) => {
-              if (playerYIndex === columnIndex && playerXIndex === rowIndex && !row[playerXIndex + move]) {
-                console.log('invalid move');
-                return 'P';
-              }
-
-              if (playerYIndex === columnIndex && playerXIndex === rowIndex) {
-                return 'E';
-              }
-              if (playerYIndex === columnIndex && playerXIndex + move === rowIndex) {
-                if (block === 'S') {
-                  setStars((stars) => {
-                    return stars + 0.5
-                  });
+            return map.map((row, columnIndex) => {
+              return row.map((block, rowIndex) => {
+                if (
+                  playerXIndex === rowIndex &&
+                  playerYIndex === columnIndex &&
+                  !map[playerYIndex + move]
+                ) {
+                  setError('Invalid Move');
+                  errorMessage = 'Invalid Move';
+                  return 'X';
                 }
 
-                return 'P';
-              }
-              return block;
-            })
-          })
-        })
-      },internalCalls * timeBetweenCalls);
-    }
-    
-    ${code};
-    `);
+                if (playerXIndex === rowIndex && playerYIndex === columnIndex) {
+                  return 'ER';
+                }
+                if (
+                  playerXIndex === rowIndex &&
+                  playerYIndex + move === columnIndex
+                ) {
+                  if (block === 'S') {
+                    setStars((stars) => {
+                      return stars + 0.5;
+                    });
+                  }
+
+                  return 'P';
+                }
+                return block;
+              });
+            });
+          });
+        }, internalCalls * timeBetweenCalls);
+        timeouts = [...timeouts, timeout];
+      }
+
+      function moveX(move) {
+        const timeout = setTimeout(() => {
+          if (errorMessage) {
+            clearTimeout(timeout);
+            return;
+          }
+          console.log(move === 1 ? 'right' : 'left');
+          setMap((map) => {
+            let playerXIndex, playerYIndex;
+            map.forEach((row, columnIndex) => {
+              row.forEach((block, rowIndex) => {
+                if (block === 'P' || block === 'B') {
+                  playerXIndex = rowIndex;
+                  playerYIndex = columnIndex;
+                }
+              });
+            });
+
+            return map.map((row, columnIndex) => {
+              return row.map((block, rowIndex) => {
+                if (
+                  playerYIndex === columnIndex &&
+                  playerXIndex === rowIndex &&
+                  !row[playerXIndex + move]
+                ) {
+                  setError('Invalid Move');
+                  errorMessage = 'Invalid Move';
+                  return 'X';
+                }
+
+                if (playerYIndex === columnIndex && playerXIndex === rowIndex) {
+                  return 'ER';
+                }
+                if (
+                  playerYIndex === columnIndex &&
+                  playerXIndex + move === rowIndex
+                ) {
+                  if (block === 'S') {
+                    setStars((stars) => {
+                      return stars + 0.5;
+                    });
+                  }
+
+                  return 'P';
+                }
+                return block;
+              });
+            });
+          });
+        }, internalCalls * timeBetweenCalls);
+        timeouts = [...timeouts, timeout];
+      }
+      eval(code);
     } catch (error) {
-      console.log('compile error');
+      setError('Compiler Error, Please Try Again!');
     }
   }
 
   return (
     <div className="relative h-screen flex overflow-hidden">
       <div className="absolute right-0 top-0 m-4 z-10">
+        {!running ? (
+          <button
+            onClick={evalCode}
+            className="border rounded border-blue-500 text-blue-500 px-4 py-2 shadow-md mr-6">
+            Run
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              stop();
+              reset();
+            }}
+            className="border rounded border-blue-500 text-blue-500 px-4 py-2 shadow-md mr-6">
+            Reset
+          </button>
+        )}
         <button
-          onClick={evalCode}
+          onClick={() => {
+            stop();
+          }}
           className="border rounded border-red-500 text-red-500 px-4 py-2 shadow-md">
-          Run
+          Stop
         </button>
         {calls > maxCalls && <div>You Lose, Please Try Again</div>}
+        {error && <div>{error}</div>}
         <div>Star Count: {stars}</div>
+        <div>Calls Count: {calls}</div>
       </div>
-      <div className="flex-1">
+      <div className="w-1/2">
         <MonacoEditor
           height="100vh"
           width="100%"
           language="javascript"
           theme="vs-dark"
           value={code}
-          options={options}
+          options={{
+            selectOnLineNumbers: true,
+            fontSize: 18,
+          }}
           onChange={(value) => {
             setCode(value);
           }}
         />
       </div>
-      <div className="relative w-full flex-1 m-auto justify-center items-center">
+      <div className="p-1 cursor-move bg-gray-800"></div>
+      <div className="relative w-1/2 m-auto justify-center items-center">
         <div className="w-full flex justify-center items-center">
           <div>
             {map.map((row, index) => (
-              <Row key={index} row={row}></Row>
+              <Row key={index} map={map} columnIndex={index} row={row}></Row>
             ))}
           </div>
         </div>
