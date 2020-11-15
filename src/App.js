@@ -237,7 +237,6 @@ export default function App() {
             clearTimeout(timeout);
             return;
           }
-          console.log(move === 1 ? 'down' : 'up');
           setMap((map) => {
             let playerXIndex, playerYIndex;
             map.forEach((row, columnIndex) => {
@@ -286,7 +285,7 @@ export default function App() {
                 ) {
                   if (block === 'S') {
                     setStars((stars) => {
-                      return stars + 0.5;
+                      return stars + 1;
                     });
                   }
 
@@ -306,7 +305,6 @@ export default function App() {
             clearTimeout(timeout);
             return;
           }
-          console.log(move === 1 ? 'right' : 'left');
           setMap((map) => {
             let playerXIndex, playerYIndex;
             map.forEach((row, columnIndex) => {
@@ -337,7 +335,6 @@ export default function App() {
                 ) {
                   setError('Blocked By Wall');
                   errorMessage = 'Blocked By Wall';
-                  console.log('X');
                   return 'X';
                 }
 
@@ -355,7 +352,7 @@ export default function App() {
                 ) {
                   if (block === 'S') {
                     setStars((stars) => {
-                      return stars + 0.5;
+                      return stars + 1;
                     });
                   }
 
