@@ -1,20 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import MonacoEditor from 'react-monaco-editor';
 
-const defaultCode = `
-// Here you will write your code in the setup function.
+const defaultCode = `// Here you will write your code in the setup function.
 
 // Functions to use
-// up(moveCount);
-// down(moveCount);
-// left(moveCount);
-// right(moveCount);
+// up();    - moves ↑ 1
+// down();  - moves ↓ 1
+// left();  - moves ← 1
+// right(); - moves → 1
+// direction [LEFT | RIGHT | UP | DOWN]
+// loop(direction, moveCount);
 
-right(2);
-down(6);
-right(5);
-down(2);
-right(2);
+// func(() => {
+//   up to three function calls;
+// });
+
+func(() => {
+  loop(DOWN, 3);
+  loop(RIGHT, 2);
+  loop(DOWN, 3);
+});
+
+func(() => {
+  loop(RIGHT, 5);
+  loop(DOWN, 2);
+  loop(RIGHT, 2);
+});
 `;
 
 function Row({ row, columnIndex, map }) {
@@ -22,13 +33,14 @@ function Row({ row, columnIndex, map }) {
     <div className="flex">
       {row.map((block, index) => {
         const isPath = ['P', 'B', 'ER'].includes(block);
+        const borders = ['P', 'B', 'W', 'ER', 'X'];
 
-        const leftBorder = ['P', 'B', 'W', 'ER', 'X'].includes(row[index - 1]);
-        const rightBorder = ['P', 'B', 'W', 'ER', 'X'].includes(row[index + 1]);
-        const topBorder = ['P', 'B', 'W', 'ER', 'X'].includes(
+        const leftBorder = borders.includes(row[index - 1]);
+        const rightBorder = borders.includes(row[index + 1]);
+        const topBorder = borders.includes(
           map[columnIndex - 1] && map[columnIndex - 1][index]
         );
-        const bottomBorder = ['P', 'B', 'W', 'ER', 'X'].includes(
+        const bottomBorder = borders.includes(
           map[columnIndex + 1] && map[columnIndex + 1][index]
         );
 
@@ -95,12 +107,26 @@ let timeouts = [];
 
 export default function App() {
   const [code, setCode] = useState(defaultCode);
+  const [editor, setEditor] = useState(null);
   const [map, setMap] = useState(defaultMap);
   const [calls, setCalls] = useState(0);
   const [maxCalls, setMaxCalls] = useState(5);
   const [stars, setStars] = useState(0);
   const [error, setError] = useState(null);
   const [running, setRunning] = useState(false);
+
+  useEffect(() => {
+    if (editor) {
+      const listener = document.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          editor.getAction('editor.action.formatDocument').run();
+          return;
+        }
+      });
+      return () => document.removeEventListener('keydown', listener);
+    }
+  }, [editor]);
 
   useEffect(() => {
     if (calls > maxCalls) {
@@ -127,13 +153,24 @@ export default function App() {
     stop();
     setRunning(true);
     let errorMessage;
+
+    const RIGHT = '__right';
+    const LEFT = '__left';
+    const UP = '__up';
+    const DOWN = '__down';
+
     try {
       let internalCalls = 0;
       let totalFunctionCalls = 0;
-      let timeBetweenCalls = 250;
+      let timeBetweenCalls = 10;
 
       function move(moves, callback) {
-        totalFunctionCalls++;
+        if (window.inFunction) {
+          window.callsInFunction++;
+        }
+        if (!window.overrideCount) {
+          totalFunctionCalls++;
+        }
         setCalls(totalFunctionCalls);
         [...Array(moves).keys()].forEach((move) => {
           internalCalls++;
@@ -141,17 +178,57 @@ export default function App() {
         });
       }
 
-      function up(moves = 1) {
-        move(moves, () => moveY(-1));
+      function up() {
+        move(1, () => moveY(-1));
       }
       function down(moves = 1) {
-        move(moves, () => moveY(1));
+        move(1, () => moveY(1));
       }
       function left(moves = 1) {
-        move(moves, () => moveX(-1));
+        move(1, () => moveX(-1));
       }
       function right(moves = 1) {
+        move(1, () => moveX(1));
+      }
+
+      function __up(moves = 1) {
+        move(moves, () => moveY(-1));
+      }
+      function __down(moves = 1) {
+        move(moves, () => moveY(1));
+      }
+      function __left(moves = 1) {
+        move(moves, () => moveX(-1));
+      }
+      function __right(moves = 1) {
         move(moves, () => moveX(1));
+      }
+
+      function loop(direction, count) {
+        if (!window.inFunction) {
+          totalFunctionCalls++;
+        }
+
+        window.overrideCount = true;
+        eval(direction)(count);
+        window.overrideCount = false;
+      }
+
+      function func(callback) {
+        window.callsInFunction = 0;
+        window.maxCallsInFunction = 3;
+        window.inFunction = true;
+        window.overrideCount = true;
+        totalFunctionCalls++;
+        callback();
+
+        if (window.callsInFunction > window.maxCallsInFunction) {
+          setError('Only 3 function calls in function allowed');
+          stop();
+        }
+
+        window.inFunction = false;
+        window.overrideCount = false;
       }
 
       function moveY(move) {
@@ -182,6 +259,22 @@ export default function App() {
                   setError('Invalid Move');
                   errorMessage = 'Invalid Move';
                   return 'X';
+                }
+
+                if (
+                  playerYIndex === columnIndex &&
+                  playerXIndex === rowIndex &&
+                  map[playerYIndex + move] &&
+                  map[playerYIndex + move][rowIndex] === 'W'
+                ) {
+                  setError('Blocked By Wall');
+                  errorMessage = 'Blocked By Wall';
+                  console.log('X');
+                  return 'X';
+                }
+
+                if (block === 'W') {
+                  return 'W';
                 }
 
                 if (playerXIndex === rowIndex && playerYIndex === columnIndex) {
@@ -237,9 +330,25 @@ export default function App() {
                   return 'X';
                 }
 
+                if (
+                  playerYIndex === columnIndex &&
+                  playerXIndex === rowIndex &&
+                  row[playerXIndex + move] === 'W'
+                ) {
+                  setError('Blocked By Wall');
+                  errorMessage = 'Blocked By Wall';
+                  console.log('X');
+                  return 'X';
+                }
+
+                if (block === 'W') {
+                  return 'W';
+                }
+
                 if (playerYIndex === columnIndex && playerXIndex === rowIndex) {
                   return 'ER';
                 }
+
                 if (
                   playerYIndex === columnIndex &&
                   playerXIndex + move === rowIndex
@@ -261,6 +370,7 @@ export default function App() {
       }
       eval(code);
     } catch (error) {
+      console.log(error);
       setError('Compiler Error, Please Try Again!');
     }
   }
@@ -291,21 +401,46 @@ export default function App() {
           className="border rounded border-red-500 text-red-500 px-4 py-2 shadow-md">
           Stop
         </button>
-        {calls > maxCalls && <div>You Lose, Please Try Again</div>}
-        {error && <div>{error}</div>}
-        <div>Star Count: {stars}</div>
-        <div>Calls Count: {calls}</div>
       </div>
       <div className="w-1/2">
         <MonacoEditor
           height="100vh"
-          width="100%"
           language="javascript"
           theme="vs-dark"
           value={code}
+          editorWillMount={(monaco) => {
+            monaco.languages.registerDocumentFormattingEditProvider(
+              'javascript',
+              {
+                provideDocumentFormattingEdits(model, options, token) {
+                  try {
+                    const text = window.prettier.format(model.getValue(), {
+                      parser: 'babylon',
+                      plugins: window.prettierPlugins,
+                    });
+
+                    return [
+                      {
+                        range: model.getFullModelRange(),
+                        text,
+                      },
+                    ];
+                  } catch (err) {
+                    alert(err);
+                  }
+                },
+              }
+            );
+          }}
+          editorDidMount={(editor) => {
+            editor.getModel().updateOptions({ tabSize: 2 });
+            setEditor(editor);
+          }}
           options={{
             selectOnLineNumbers: true,
+            minimap: { enabled: false },
             fontSize: 18,
+            useTabStops: false,
           }}
           onChange={(value) => {
             setCode(value);
@@ -313,12 +448,25 @@ export default function App() {
         />
       </div>
       <div className="p-1 cursor-move bg-gray-800"></div>
-      <div className="relative w-1/2 m-auto justify-center items-center">
-        <div className="w-full flex justify-center items-center">
-          <div>
-            {map.map((row, index) => (
-              <Row key={index} map={map} columnIndex={index} row={row}></Row>
-            ))}
+      <div className="relative w-1/2 h-full">
+        <div className="relative m-auto justify-center items-center h-full">
+          <div className="items-start justify-start pt-5 pl-5 flex space-x-6">
+            <div>Star Count: {stars}</div>
+            <div>Call Count: {calls}</div>
+            <div>Max Call Count: {maxCalls}</div>
+            {calls > maxCalls && (
+              <div className="text-red-600">You Lose, Please Try Again</div>
+            )}
+          </div>
+          <div className="items-start justify-start pt-5 pl-5 flex space-x-6">
+            {error && <div className="text-red-600">{error}</div>}
+          </div>
+          <div className="w-full flex flex-1 justify-center mt-16">
+            <div>
+              {map.map((row, index) => (
+                <Row key={index} map={map} columnIndex={index} row={row}></Row>
+              ))}
+            </div>
           </div>
         </div>
       </div>
